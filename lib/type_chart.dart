@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 /// 18개 타입의 영문 키 → 한국어 표기
@@ -68,8 +69,9 @@ const Map<String, String> typeEmoji = {
   'fairy': '🧚',
 };
 
-/// 공격 타입 → (방어 타입 → 배율). 기본값 1.0, 여기 없는 조합은 1배.
-/// 2.0 = 효과 굉장, 0.5 = 효과 별로, 0.0 = 효과 없음
+/// 공격 타입 → (방어 타입 → 본가 배율). 기본값 1.0, 여기 없는 조합은 1배.
+/// 2.0 = 효과 굉장, 0.5 = 효과 별로, 0.0 = 효과 없음(본가)
+/// ※ 실제 계산은 이 값을 포켓몬고 단계로 변환해서 사용 (_step / _goMult 참고).
 const Map<String, Map<String, double>> _chart = {
   'normal': {'rock': 0.5, 'ghost': 0.0, 'steel': 0.5},
   'fire': {
@@ -143,43 +145,60 @@ const List<String> allTypes = [
   'steel', 'fairy',
 ];
 
-double _mult(String atk, String def) => _chart[atk]?[def] ?? 1.0;
+// ── 포켓몬고 상성 체계 ─────────────────────────────────────────
+// 본가의 곱셈(2/0.5/0배) 대신 "단계 합산 후 1.6^단계"를 쓴다.
+//  본가 2.0 → +1단계, 1.0 → 0, 0.5 → -1, 0.0(무효) → -2(고는 무효 없음, 한 단계 더 저항)
+//  결과 배율: 2.56(+2) / 1.6(+1) / 1.0(0) / 0.625(-1) / 0.390625(-2) / 0.244…(-3)
+// 정수 단계로 합산하므로 부동소수점 오차로 인한 오분류가 없다.
+const double _goBase = 1.6;
 
-/// 공격 타입들(자속)이 방어 타입 조합에게 줄 수 있는 최대 배율.
+int _stepOf(double mainVal) {
+  if (mainVal >= 2.0) return 1;
+  if (mainVal == 0.0) return -2;
+  if (mainVal <= 0.5) return -1;
+  return 0;
+}
+
+int _step(String atk, String def) => _stepOf(_chart[atk]?[def] ?? 1.0);
+
+double _goMult(int steps) => math.pow(_goBase, steps).toDouble();
+
+/// 공격 타입들(자속)이 방어 타입 조합에게 줄 수 있는 최대 배율(포켓몬고 기준).
 /// 카운터 추천에서 "이 포켓몬이 상대에게 얼마나 세게 들어가나" 계산용.
 double bestDamageMultiplier(List<String> attackerTypes, List<String> defenderTypes) {
   double best = 0.0;
   for (final atk in attackerTypes) {
-    double m = 1.0;
+    int steps = 0;
     for (final def in defenderTypes) {
-      m *= _mult(atk, def);
+      steps += _step(atk, def);
     }
+    final m = _goMult(steps);
     if (m > best) best = m;
   }
   return best;
 }
 
-/// 방어 상성: 이 포켓몬(types)이 각 공격 타입에게 받는 최종 배율
+/// 방어 상성(포켓몬고): 이 포켓몬(types)이 각 공격 타입에게 받는 최종 배율
 Map<String, double> defenseMultipliers(List<String> types) {
   final result = <String, double>{};
   for (final atk in allTypes) {
-    double m = 1.0;
+    int steps = 0;
     for (final def in types) {
-      m *= _mult(atk, def);
+      steps += _step(atk, def);
     }
-    result[atk] = m;
+    result[atk] = _goMult(steps);
   }
   return result;
 }
 
-/// 공격 상성: 이 포켓몬의 타입(자속 기술)으로 공격할 때
+/// 공격 상성(포켓몬고): 이 포켓몬의 타입(자속 기술)으로 공격할 때
 /// 각 방어 타입에게 줄 수 있는 최대 배율
 Map<String, double> offenseMultipliers(List<String> types) {
   final result = <String, double>{};
   for (final def in allTypes) {
     double best = 0.0;
     for (final atk in types) {
-      final m = _mult(atk, def);
+      final m = _goMult(_step(atk, def));
       if (m > best) best = m;
     }
     result[def] = best;

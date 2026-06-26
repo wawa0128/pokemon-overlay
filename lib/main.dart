@@ -201,7 +201,8 @@ class PokemonRepo {
   static List<Pokemon> counters(List<Pokemon> all, Pokemon target) {
     final list = all.where((q) {
       if (q.id == target.id) return false;
-      return bestDamageMultiplier(q.types, target.types) >= 2.0;
+      // 포켓몬고 효과굉장(1.6배) 이상이면 카운터 후보
+      return bestDamageMultiplier(q.types, target.types) > 1.0;
     }).toList();
     list.sort((a, b) {
       final ea = bestDamageMultiplier(a.types, target.types);
@@ -1074,7 +1075,10 @@ class _OverlayRootState extends State<OverlayRoot> {
 
   String _fmt(double v) {
     if (v == v.roundToDouble()) return v.toInt().toString();
-    return v.toString();
+    // 포켓몬고 배율(2.56/1.6/0.625/0.390625/0.244…)을 최대 3자리로 표기
+    var s = v.toStringAsFixed(3);
+    s = s.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+    return s;
   }
 }
 
