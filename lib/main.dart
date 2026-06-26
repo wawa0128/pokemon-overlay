@@ -227,7 +227,51 @@ class ControlApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
         useMaterial3: true,
       ),
-      home: const ControlPage(),
+      home: const RootPager(),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 메인 페이저 — 좌우 스와이프(검색 ↔ 티어표) + 하단 탭
+// ─────────────────────────────────────────────────────────────
+class RootPager extends StatefulWidget {
+  const RootPager({super.key});
+  @override
+  State<RootPager> createState() => _RootPagerState();
+}
+
+class _RootPagerState extends State<RootPager> {
+  final _pc = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _pc.dispose();
+    super.dispose();
+  }
+
+  void _go(int i) => _pc.animateToPage(i,
+      duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView(
+        controller: _pc,
+        onPageChanged: (i) => setState(() => _page = i),
+        children: const [ControlPage(), TierListPage()],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _page,
+        onDestinationSelected: _go,
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.search), label: '약점 검색'),
+          NavigationDestination(
+              icon: Icon(Icons.leaderboard), label: '타입별 티어'),
+        ],
+      ),
     );
   }
 }
@@ -476,6 +520,239 @@ class _ControlPageState extends State<ControlPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 타입별 레이드 티어표 (포켓몬고 공격 메타)
+// ─────────────────────────────────────────────────────────────
+class TierEntry {
+  final String ko;
+  final String tier; // S / A / B
+  final bool mega;
+  TierEntry(this.ko, this.tier, this.mega);
+  factory TierEntry.fromJson(Map<String, dynamic> j) =>
+      TierEntry(j['ko'] as String, j['tier'] as String, j['mega'] as bool? ?? false);
+}
+
+Color _tierColor(String t) {
+  switch (t) {
+    case 'S':
+      return const Color(0xFFE53935);
+    case 'A':
+      return const Color(0xFFFB8C00);
+    default:
+      return const Color(0xFF757575);
+  }
+}
+
+class TierListPage extends StatefulWidget {
+  const TierListPage({super.key});
+  @override
+  State<TierListPage> createState() => _TierListPageState();
+}
+
+class _TierListPageState extends State<TierListPage> {
+  Map<String, List<TierEntry>> _tiers = {};
+  Map<String, Pokemon> _byName = {};
+  String _type = 'fire';
+  bool _includeMega = true;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final all = await PokemonRepo.load();
+    final raw = await rootBundle.loadString('assets/raid_tiers.json');
+    final m = jsonDecode(raw) as Map<String, dynamic>;
+    final tiers = m.map((k, v) => MapEntry(
+        k, (v as List).map((e) => TierEntry.fromJson(e as Map<String, dynamic>)).toList()));
+    if (!mounted) return;
+    setState(() {
+      _byName = {for (final p in all) p.ko: p};
+      _tiers = tiers;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = [
+      for (final e in (_tiers[_type] ?? const <TierEntry>[]))
+        if (_includeMega || !e.mega) e
+    ];
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('타입별 레이드 티어'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // 메가 포함/제외 토글
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('메가 포함')),
+                      ButtonSegment(value: false, label: Text('메가 제외')),
+                    ],
+                    selected: {_includeMega},
+                    onSelectionChanged: (s) =>
+                        setState(() => _includeMega = s.first),
+                  ),
+                ),
+                // 타입 선택 가로 스크롤
+                SizedBox(
+                  height: 46,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    children: [
+                      for (final t in allTypes)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: ChoiceChip(
+                            label: Text(
+                                '${typeEmoji[t] ?? ''}${typeKo[t] ?? t}',
+                                style: TextStyle(
+                                    color: _type == t
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.bold)),
+                            selected: _type == t,
+                            selectedColor: colorOf(t),
+                            backgroundColor: colorOf(t).withValues(alpha: 0.18),
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _type = t),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: entries.isEmpty
+                      ? const Center(child: Text('데이터가 없어요.'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+                          itemCount: entries.length + 1,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (ctx, i) {
+                            if (i == entries.length) {
+                              return const Padding(
+                                padding: EdgeInsets.only(top: 8),
+                                child: Text(
+                                  '※ 포켓몬고 레이드 공격 메타 기준(대략). '
+                                  '게임 업데이트로 순위는 바뀔 수 있어요.',
+                                  style: TextStyle(
+                                      fontSize: 11, color: Colors.black45),
+                                ),
+                              );
+                            }
+                            return _tierRow(i + 1, entries[i]);
+                          },
+                        ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _tierRow(int rank, TierEntry e) {
+    final p = _byName[e.ko];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6)
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text('$rank',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.black45)),
+          ),
+          // 티어 배지
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _tierColor(e.tier),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(e.tier,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(e.ko,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                    if (e.mega)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('메가/원시',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.purple,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                  ],
+                ),
+                if (p != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Wrap(
+                      spacing: 4,
+                      children: [for (final t in p.types) _miniTypeChip(t)],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniTypeChip(String type) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: colorOf(type),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text('${typeEmoji[type] ?? ''}${typeKo[type] ?? type}',
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
     );
   }
 }
