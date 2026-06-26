@@ -510,6 +510,8 @@ class _OverlayRootState extends State<OverlayRoot> {
   final _controller = TextEditingController();
   bool _scanning = false;
   int? _confidence; // 마지막 OCR 인식률(%)
+  // 미니/상세 카드 창의 위치(화면 중앙 기준 offset, dp). 드래그로 갱신·유지.
+  Offset _winPos = const Offset(0, -120);
 
   @override
   void initState() {
@@ -590,16 +592,45 @@ class _OverlayRootState extends State<OverlayRoot> {
 
   Future<void> _goMini() async {
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 240, false);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
+    // 카드 크기에 맞춘 떠있는 패널(드래그 핸들로 이동). enableDrag=false: 핸들로만 이동.
+    await FlutterOverlayWindow.resizeOverlay(330, 280, false);
+    await FlutterOverlayWindow.moveOverlay(
+        OverlayPosition(_winPos.dx, _winPos.dy));
     setState(() => _stage = Stage.mini);
   }
 
   Future<void> _goFull() async {
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 600, false);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
+    await FlutterOverlayWindow.resizeOverlay(350, 560, false);
+    await FlutterOverlayWindow.moveOverlay(
+        OverlayPosition(_winPos.dx, _winPos.dy));
     setState(() => _stage = Stage.full);
+  }
+
+  /// 카드 상단 드래그 핸들 — 잡고 움직이면 오버레이 창이 따라 이동.
+  Widget _dragHandle() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanUpdate: (d) {
+        _winPos += d.delta; // delta(dp) = moveOverlay 좌표 단위와 동일
+        FlutterOverlayWindow.moveOverlay(
+            OverlayPosition(_winPos.dx, _winPos.dy));
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Container(
+            width: 44,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.black38,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -653,42 +684,30 @@ class _OverlayRootState extends State<OverlayRoot> {
     );
   }
 
-  /// 전체화면 투명 창: 바깥(스크림) 탭하면 버블로 접고, 카드는 하단 정렬.
-  Widget _overlayScaffold(Widget card) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _goBubble,
-            child: Container(color: Colors.black.withValues(alpha: 0.15)),
-          ),
-        ),
-        Align(alignment: Alignment.center, child: card),
-      ],
-    );
-  }
-
-  // ── 2단계: 미니 정보 카드 ──────────────────────────────
+  // ── 2단계: 미니 정보 카드 (드래그로 이동 가능) ──────────────────
   Widget _buildMini() {
-    return _overlayScaffold(
-      Container(
-        margin: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(maxWidth: 460),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.all(6),
         decoration: _cardDeco(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _dragHandle(),
             _searchBar(onCollapse: _goBubble),
             const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-              child: _all.isEmpty
-                  ? const Text('데이터 로딩 중…')
-                  : _selected == null
-                      ? const Text('검색 결과가 없어요.',
-                          style: TextStyle(color: Colors.black54))
-                      : _miniBody(_selected!),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                child: _all.isEmpty
+                    ? const Text('데이터 로딩 중…')
+                    : _selected == null
+                        ? const Text('검색 결과가 없어요.',
+                            style: TextStyle(color: Colors.black54))
+                        : _miniBody(_selected!),
+              ),
             ),
           ],
         ),
@@ -758,26 +777,18 @@ class _OverlayRootState extends State<OverlayRoot> {
     );
   }
 
-  // ── 3단계: 상세 바텀시트 ──────────────────────────────
+  // ── 3단계: 상세 패널 (드래그로 이동 가능) ──────────────────
   Widget _buildFull() {
-    return _overlayScaffold(
-      Container(
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Container(
         width: double.infinity,
-        constraints: const BoxConstraints(maxWidth: 520),
         margin: const EdgeInsets.all(6),
         decoration: _cardDeco(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 드래그 핸들
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
+            _dragHandle(),
             _searchBar(onCollapse: _goMini),
             const Divider(height: 1),
             Flexible(
