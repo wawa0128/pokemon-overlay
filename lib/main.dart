@@ -787,8 +787,6 @@ class _OverlayRootState extends State<OverlayRoot> {
   final _controller = TextEditingController();
   bool _scanning = false;
   int? _confidence; // 마지막 OCR 인식률(%)
-  // 미니/상세 카드 창의 위치(화면 중앙 기준 offset, dp). 드래그로 갱신·유지.
-  Offset _winPos = const Offset(0, -120);
 
   @override
   void initState() {
@@ -798,10 +796,8 @@ class _OverlayRootState extends State<OverlayRoot> {
       // 예시로 한 마리 미리 표시 (목업과 동일하게)
       _select(v.firstWhere((p) => p.ko == '뮤츠', orElse: () => v.first));
     });
-    // 시작 시 버블을 우하단으로 배치
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      FlutterOverlayWindow.moveOverlay(const OverlayPosition(150, 300));
-    });
+    // 시작 시 버블 크기를 56dp로 정규화(showOverlay px 크기와 무관하게 통일 → 깨짐 방지)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _goBubble());
   }
 
   /// 📷 화면 인식: 버블로 접은 뒤 네이티브에서 직접 캡처+OCR → 매칭 → 표시
@@ -869,41 +865,33 @@ class _OverlayRootState extends State<OverlayRoot> {
 
   Future<void> _goMini() async {
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    // 카드 크기에 맞춘 떠있는 패널(드래그 핸들로 이동). enableDrag=false: 핸들로만 이동.
-    await FlutterOverlayWindow.resizeOverlay(330, 280, false);
-    await FlutterOverlayWindow.moveOverlay(
-        OverlayPosition(_winPos.dx, _winPos.dy));
+    // 미니 카드: enableDrag=true → 플러그인 네이티브 드래그(떨림 없이 부드럽게).
+    // 카드 어디를 잡아도 이동 가능, 버튼/검색창 탭은 그대로 동작.
+    await FlutterOverlayWindow.resizeOverlay(330, 280, true);
+    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, -150));
     setState(() => _stage = Stage.mini);
   }
 
   Future<void> _goFull() async {
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
+    // 상세 화면: 위치 고정(중앙) + 드래그 불가 → X 버튼을 항상 누를 수 있게.
     await FlutterOverlayWindow.resizeOverlay(350, 560, false);
-    await FlutterOverlayWindow.moveOverlay(
-        OverlayPosition(_winPos.dx, _winPos.dy));
+    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
     setState(() => _stage = Stage.full);
   }
 
-  /// 카드 상단 드래그 핸들 — 잡고 움직이면 오버레이 창이 따라 이동.
-  Widget _dragHandle() {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanUpdate: (d) {
-        _winPos += d.delta; // delta(dp) = moveOverlay 좌표 단위와 동일
-        FlutterOverlayWindow.moveOverlay(
-            OverlayPosition(_winPos.dx, _winPos.dy));
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Center(
-          child: Container(
-            width: 44,
-            height: 5,
-            decoration: BoxDecoration(
-              color: Colors.black38,
-              borderRadius: BorderRadius.circular(3),
-            ),
+  /// 미니 카드 상단의 이동 손잡이(시각 표시용). 실제 이동은 네이티브 드래그가 처리.
+  Widget _gripBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: Container(
+          width: 44,
+          height: 5,
+          decoration: BoxDecoration(
+            color: Colors.black38,
+            borderRadius: BorderRadius.circular(3),
           ),
         ),
       ),
@@ -972,7 +960,7 @@ class _OverlayRootState extends State<OverlayRoot> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _dragHandle(),
+            _gripBar(),
             _searchBar(onCollapse: _goBubble),
             const Divider(height: 1),
             Flexible(
@@ -1065,7 +1053,7 @@ class _OverlayRootState extends State<OverlayRoot> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _dragHandle(),
+            const SizedBox(height: 6),
             _searchBar(onCollapse: _goMini),
             const Divider(height: 1),
             Flexible(
