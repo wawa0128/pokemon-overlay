@@ -856,11 +856,15 @@ class _OverlayRootState extends State<OverlayRoot> {
   // 버블: 우하단 + 기본 플래그(포커스 안 뺏음). 미니/상세: 중앙 + focusPointer(키보드 입력 가능).
   Future<void> _goBubble() async {
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    // 창은 동그라미(40dp)보다 항상 크게(56dp) → 어떤 밀도에서도 안 잘림.
-    // 남는 여백은 투명이라 안 보이고, 탭 영역만 살짝 넓어짐.
-    await FlutterOverlayWindow.resizeOverlay(56, 56, true);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(150, 300));
-    setState(() => _stage = Stage.bubble);
+    // 창은 동그라미(34dp)보다 항상 크게(48dp) → 어떤 밀도에서도 안 잘림.
+    // moveOverlay는 기기마다 좌표 해석이 달라 화면 밖으로 튈 수 있어 호출하지 않음.
+    await FlutterOverlayWindow.resizeOverlay(48, 48, true);
+    // 플러그인 버그: resizeOverlay 후 표면이 즉시 갱신 안 돼 이전 카드가 '흰 네모'로 남음.
+    // 리사이즈가 끝난 뒤 위젯을 버블로 바꾸고, 한 프레임 더 강제 리빌드해 새로 그린다.
+    await Future.delayed(const Duration(milliseconds: 80));
+    if (mounted) setState(() => _stage = Stage.bubble);
+    await Future.delayed(const Duration(milliseconds: 80));
+    if (mounted) setState(() {});
   }
 
   Future<void> _goMini() async {
@@ -921,13 +925,13 @@ class _OverlayRootState extends State<OverlayRoot> {
       onTap: _goMini,
       child: Center(
         child: Container(
-          width: 44,
-          height: 44,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4), blurRadius: 6)
+                  color: Colors.black.withValues(alpha: 0.4), blurRadius: 5)
             ],
           ),
           child: _scanning
@@ -935,13 +939,13 @@ class _OverlayRootState extends State<OverlayRoot> {
                   decoration:
                       const BoxDecoration(shape: BoxShape.circle, color: Colors.red),
                   child: const Padding(
-                    padding: EdgeInsets.all(11),
+                    padding: EdgeInsets.all(8),
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5),
                   ),
                 )
               : CustomPaint(
-                  size: const Size(44, 44),
+                  size: const Size(34, 34),
                   painter: _PokeballPainter(),
                 ),
         ),
@@ -1244,17 +1248,21 @@ class _OverlayRootState extends State<OverlayRoot> {
             onPressed: _scan,
           ),
           IconButton(
-            icon: const Icon(Icons.remove),
+            icon: const Icon(Icons.remove, size: 26),
             tooltip: '버블로 접기',
             visualDensity: VisualDensity.compact,
             onPressed: onCollapse,
           ),
+          const SizedBox(width: 6),
+          // 닫기(X)는 빨간 원 배경으로 확실히 구분 → 접기와 헷갈려 잘못 끄는 것 방지
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.redAccent),
+            icon: const Icon(Icons.close, color: Colors.white, size: 20),
             tooltip: '오버레이 끄기',
             visualDensity: VisualDensity.compact,
+            style: IconButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: _closeOverlay,
           ),
+          const SizedBox(width: 2),
         ],
       ),
     );
