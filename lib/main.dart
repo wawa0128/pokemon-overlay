@@ -927,30 +927,59 @@ class _OverlayRootState extends State<OverlayRoot> {
     return GestureDetector(
       onTap: _goMini,
       child: Center(
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4), blurRadius: 5)
-            ],
-          ),
-          child: _scanning
-              ? Container(
-                  decoration:
-                      const BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-                  child: const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2.5),
-                  ),
-                )
-              : CustomPaint(
-                  size: const Size(34, 34),
-                  painter: _PokeballPainter(),
+        child: _scanning
+            ? Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: Colors.red),
+                child: const Padding(
+                  padding: EdgeInsets.all(9),
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2.5),
                 ),
+              )
+            : _pokeballWidget(40),
+      ),
+    );
+  }
+
+  /// 포켓볼(몬스터볼) — 일반 위젯으로 구성(빨강 베이스).
+  /// 혹시 일부가 안 그려져도 최소 '빨간 공'으로 보여 '흰 네모'가 안 생김.
+  Widget _pokeballWidget(double d) {
+    return Container(
+      width: d,
+      height: d,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFFEE1515), // 빨강 베이스
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 5),
+        ],
+      ),
+      child: ClipOval(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Column(
+              children: [
+                Expanded(child: Container(color: const Color(0xFFEE1515))),
+                Expanded(child: Container(color: Colors.white)),
+              ],
+            ),
+            // 가운데 검은 띠
+            Container(height: d * 0.12, width: d, color: Colors.black),
+            // 가운데 버튼(흰 원 + 검은 테두리)
+            Container(
+              width: d * 0.34,
+              height: d * 0.34,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: d * 0.05),
+              ),
+            ),
+          ],
         ),
       ),
     );
