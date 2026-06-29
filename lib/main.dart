@@ -855,17 +855,17 @@ class _OverlayRootState extends State<OverlayRoot> {
   // 좌표는 화면 중앙 기준 offset(dp). 양수 y = 아래로.
   // 버블: 우하단 + 기본 플래그(포커스 안 뺏음). 미니/상세: 중앙 + focusPointer(키보드 입력 가능).
   Future<void> _goBubble() async {
-    // 먼저 버블 위젯으로 전환(투명 배경) → 작은 창에 카드가 안 남도록
+    // 먼저 버블 위젯으로 전환(작은 창에 카드가 안 남도록)
     if (mounted) setState(() => _stage = Stage.bubble);
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    // 창(40dp)을 동그라미(34dp)에 최대한 맞춤 → 혹시 안 그려져도 빈 여백 최소화.
+    // 플러그인 버그: 창을 줄여도 표면(surface)이 즉시 안 그려져 이전 카드가 '흰 네모'로 남음.
+    // 서로 다른 크기로 두 번 리사이즈해 onSizeChanged를 강제 발생 → 표면이 새 크기로 다시 그려짐.
+    await FlutterOverlayWindow.resizeOverlay(48, 48, true);
+    await Future.delayed(const Duration(milliseconds: 70));
     await FlutterOverlayWindow.resizeOverlay(40, 40, true);
-    // 플러그인 버그: resizeOverlay 후 표면이 즉시 갱신 안 돼 이전 카드가 '흰 네모'로 남음.
-    // 기기 성능 편차를 고려해 여러 프레임에 걸쳐 강제로 다시 그린다.
-    for (final ms in const [0, 90, 200, 350, 550]) {
+    for (final ms in const [0, 120, 300]) {
       await Future.delayed(Duration(milliseconds: ms));
       if (!mounted) return;
-      // 토글로 확실한 리빌드 유도 후 버블 고정
       setState(() => _stage = Stage.bubble);
     }
   }
