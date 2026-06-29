@@ -11,6 +11,22 @@ import 'type_chart.dart';
 /// 깃허브 저장소(owner/repo) — 앱 내 업데이트 확인에 사용
 const String kGithubRepo = 'wawa0128/pokemon-overlay';
 
+/// 버블(작은 몬스터볼) 크기로 오버레이를 새로 띄운다(px).
+/// 접을 때마다 닫고 이걸로 다시 열어 '깨끗한 새 창'을 보장(흰 네모 방지).
+Future<void> showBubbleOverlay() async {
+  await FlutterOverlayWindow.showOverlay(
+    enableDrag: true,
+    overlayTitle: '포켓몬 약점',
+    overlayContent: '탭하여 검색',
+    flag: OverlayFlag.defaultFlag,
+    visibility: NotificationVisibility.visibilityPublic,
+    positionGravity: PositionGravity.none,
+    height: 130,
+    width: 130,
+    startPosition: const OverlayPosition(0, 0),
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 // 화면 캡처 + 한국어 OCR (메인 아이솔레이트에서만 동작)
 // ─────────────────────────────────────────────────────────────
@@ -409,19 +425,7 @@ class _ControlPageState extends State<ControlPage> {
     if (await FlutterOverlayWindow.isActive()) {
       await FlutterOverlayWindow.closeOverlay();
     }
-    await FlutterOverlayWindow.showOverlay(
-      enableDrag: true,
-      overlayTitle: '포켓몬 약점',
-      overlayContent: '탭하여 검색',
-      flag: OverlayFlag.defaultFlag,
-      visibility: NotificationVisibility.visibilityPublic,
-      // none: 위치를 moveOverlay로 직접 제어(auto면 가장자리로 스냅되어 덮어씀).
-      // 좌표는 "화면 중앙 기준 offset". showOverlay는 px, resize/move는 dp 단위.
-      positionGravity: PositionGravity.none,
-      height: 160,
-      width: 160,
-      startPosition: const OverlayPosition(0, 0),
-    );
+    await showBubbleOverlay();
     // 오버레이 엔진에도 OCR 채널 등록 (엔진 생성 대기 후)
     await Future.delayed(const Duration(milliseconds: 800));
     final okEng = await OcrService.prepareOverlayEngine();
@@ -796,8 +800,7 @@ class _OverlayRootState extends State<OverlayRoot> {
       // 예시로 한 마리 미리 표시 (목업과 동일하게)
       _select(v.firstWhere((p) => p.ko == '뮤츠', orElse: () => v.first));
     });
-    // 시작 시 버블 크기를 56dp로 정규화(showOverlay px 크기와 무관하게 통일 → 깨짐 방지)
-    WidgetsBinding.instance.addPostFrameCallback((_) => _goBubble());
+    // 오버레이는 이미 버블 크기(showBubbleOverlay)로 열리므로 시작 시 별도 리사이즈 불필요.
   }
 
   /// 📷 화면 인식: 버블로 접은 뒤 네이티브에서 직접 캡처+OCR → 매칭 → 표시
@@ -854,16 +857,18 @@ class _OverlayRootState extends State<OverlayRoot> {
 
   // 좌표는 화면 중앙 기준 offset(dp). 양수 y = 아래로.
   // 버블: 우하단 + 기본 플래그(포커스 안 뺏음). 미니/상세: 중앙 + focusPointer(키보드 입력 가능).
+  /// 접기 = 버블로 전환 + 창 축소.
+  /// (닫고 새로 여는 건 안드로이드12+가 백그라운드 포그라운드서비스 시작을 막아 크래시 → 불가)
+  /// 표면 잔상('흰 네모') 방지: 위젯 먼저 버블로 바꾸고, 서로 다른 크기로 두 번 리사이즈 +
+  /// moveOverlay + 여러 프레임 강제 리빌드로 표면을 새로 그리게 한다.
   Future<void> _goBubble() async {
-    // 먼저 버블 위젯으로 전환(작은 창에 카드가 안 남도록)
     if (mounted) setState(() => _stage = Stage.bubble);
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    // 플러그인 버그: 창을 줄여도 표면(surface)이 즉시 안 그려져 이전 카드가 '흰 네모'로 남음.
-    // 서로 다른 크기로 두 번 리사이즈해 onSizeChanged를 강제 발생 → 표면이 새 크기로 다시 그려짐.
-    await FlutterOverlayWindow.resizeOverlay(48, 48, true);
-    await Future.delayed(const Duration(milliseconds: 70));
-    await FlutterOverlayWindow.resizeOverlay(40, 40, true);
-    for (final ms in const [0, 120, 300]) {
+    await FlutterOverlayWindow.resizeOverlay(50, 50, true);
+    await Future.delayed(const Duration(milliseconds: 60));
+    await FlutterOverlayWindow.resizeOverlay(44, 44, true);
+    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
+    for (final ms in const [0, 100, 250, 450]) {
       await Future.delayed(Duration(milliseconds: ms));
       if (!mounted) return;
       setState(() => _stage = Stage.bubble);
@@ -923,23 +928,31 @@ class _OverlayRootState extends State<OverlayRoot> {
   }
 
   // ── 1단계: 플로팅 마크 ──────────────────────────────
+  // 창을 꽉 채우게 그려서 showOverlay px 크기 = 보이는 공 크기 (dp/px 어긋남·여백 없음)
   Widget _buildBubble() {
     return GestureDetector(
       onTap: _goMini,
       child: Center(
-        child: _scanning
-            ? Container(
-                width: 40,
-                height: 40,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double d = constraints.biggest.shortestSide;
+            if (!d.isFinite || d <= 0) d = 44;
+            if (_scanning) {
+              return Container(
+                width: d,
+                height: d,
                 decoration: const BoxDecoration(
                     shape: BoxShape.circle, color: Colors.red),
-                child: const Padding(
-                  padding: EdgeInsets.all(9),
-                  child: CircularProgressIndicator(
+                child: Padding(
+                  padding: EdgeInsets.all(d * 0.22),
+                  child: const CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2.5),
                 ),
-              )
-            : _pokeballWidget(40),
+              );
+            }
+            return _pokeballWidget(d);
+          },
+        ),
       ),
     );
   }
@@ -1398,51 +1411,3 @@ class _OverlayRootState extends State<OverlayRoot> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// 포켓볼 그리기 (이미지 파일 없이 벡터로 — 어떤 해상도에서도 선명)
-// ─────────────────────────────────────────────────────────────
-class _PokeballPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2;
-    final circle = Rect.fromCircle(center: c, radius: r);
-
-    // 본체를 원으로 클립
-    canvas.save();
-    canvas.clipPath(Path()..addOval(circle));
-
-    // 아래쪽 흰색
-    canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = Colors.white);
-    // 위쪽 빨강(원의 위 절반)
-    canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height / 2),
-        Paint()..color = const Color(0xFFEE1515));
-
-    // 가운데 검은 띠
-    final bandH = size.height * 0.14;
-    canvas.drawRect(
-        Rect.fromLTWH(0, c.dy - bandH / 2, size.width, bandH),
-        Paint()..color = Colors.black);
-    canvas.restore();
-
-    // 바깥 테두리
-    canvas.drawCircle(
-        c,
-        r - 0.5,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = size.width * 0.05
-          ..color = Colors.black);
-
-    // 가운데 버튼: 검은 원 → 흰 원
-    final btnR = size.width * 0.18;
-    canvas.drawCircle(c, btnR, Paint()..color = Colors.black);
-    canvas.drawCircle(c, btnR * 0.62, Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
