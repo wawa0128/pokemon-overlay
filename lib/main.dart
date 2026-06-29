@@ -897,12 +897,12 @@ class _OverlayRootState extends State<OverlayRoot> {
     await Future.delayed(const Duration(milliseconds: 32));
     // 2) 창을 작게 줄이고 포커스 해제(키보드 안 뜨게).
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    await FlutterOverlayWindow.resizeOverlay(70, 70, false);
+    await FlutterOverlayWindow.resizeOverlay(_bubble.round(), _bubble.round(), false);
     await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
     // 버블을 좌측 상단 모서리로 보낸다(moveOverlay는 '화면 중앙' 기준 좌표).
     // 위쪽은 상태바를 피해 48dp 정도 띄운다(상태바 위에 겹쳐 드래그가 막히는 것 방지).
-    _bx = -(_screenW / 2 - 35 - 6);
-    _by = -(_screenH / 2 - 35 - 48);
+    _bx = -(_screenW / 2 - _bubble / 2 - 6);
+    _by = -(_screenH / 2 - _bubble / 2 - 48);
     await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
     // 3) 줄어든 새 크기에서 새 프레임을 여러 번 강제로 그려 흰 네모(표면 잔상) 제거.
     for (final ms in const [40, 90, 170]) {
@@ -922,10 +922,13 @@ class _OverlayRootState extends State<OverlayRoot> {
     return d.size.height / d.devicePixelRatio;
   }
 
+  /// 최소화 버블(몬스터볼) 한 변 크기(dp). 흰 배경 없이 공만.
+  static const double _bubble = 34;
+
   /// 버블을 손가락 따라 이동(중앙 기준 좌표 → 가장자리까지 clamp).
   void _dragBubble(Offset delta) {
-    final mx = _screenW / 2 - 35;
-    final my = _screenH / 2 - 35;
+    final mx = _screenW / 2 - _bubble / 2;
+    final my = _screenH / 2 - _bubble / 2;
     _bx = (_bx + delta.dx).clamp(-mx, mx);
     _by = (_by + delta.dy).clamp(-my, my);
     FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
@@ -962,19 +965,19 @@ class _OverlayRootState extends State<OverlayRoot> {
         behavior: HitTestBehavior.opaque,
         onTap: _goMini,
         onPanUpdate: (d) => _dragBubble(d.delta),
+        // 흰 원 배경 없이 몬스터볼 아이콘만(절반 크기). 어두운 배경서도 보이게 옅은 그림자.
         child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35), blurRadius: 8)
+          width: _bubble,
+          height: _bubble,
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.catching_pokemon,
+            color: Colors.red,
+            size: _bubble,
+            shadows: const [
+              Shadow(color: Colors.black54, blurRadius: 4),
             ],
           ),
-          child: const Icon(Icons.catching_pokemon,
-              color: Colors.red, size: 48),
         ),
       ),
     );
