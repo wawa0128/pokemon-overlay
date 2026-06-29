@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
@@ -11,18 +12,19 @@ import 'type_chart.dart';
 /// 깃허브 저장소(owner/repo) — 앱 내 업데이트 확인에 사용
 const String kGithubRepo = 'wawa0128/pokemon-overlay';
 
-/// 버블(작은 몬스터볼) 크기로 오버레이를 새로 띄운다(px).
-/// 접을 때마다 닫고 이걸로 다시 열어 '깨끗한 새 창'을 보장(흰 네모 방지).
-Future<void> showBubbleOverlay() async {
+/// 오버레이를 '검색 카드' 크기로 바로 띄운다(메인앱 포그라운드에서 호출 → 안정적).
+/// 시작 시 리사이즈(키우기/줄이기)를 안 해서 표면 잔상('흰 네모')이 생기지 않음.
+Future<void> showCardOverlay() async {
   await FlutterOverlayWindow.showOverlay(
-    enableDrag: true,
+    // 전체 창 드래그(enableDrag)는 떨림의 원인 → 끄고, 카드 안 포켓볼 핸들로만 이동.
+    enableDrag: false,
     overlayTitle: '포켓몬 약점',
     overlayContent: '탭하여 검색',
-    flag: OverlayFlag.defaultFlag,
+    flag: OverlayFlag.focusPointer, // 키보드 입력 가능
     visibility: NotificationVisibility.visibilityPublic,
     positionGravity: PositionGravity.none,
-    height: 130,
-    width: 130,
+    height: 820, // px (요약 카드 높이에 맞춤)
+    width: WindowSize.matchParent,
     startPosition: const OverlayPosition(0, 0),
   );
 }
@@ -425,7 +427,7 @@ class _ControlPageState extends State<ControlPage> {
     if (await FlutterOverlayWindow.isActive()) {
       await FlutterOverlayWindow.closeOverlay();
     }
-    await showBubbleOverlay();
+    await showCardOverlay();
     // 오버레이 엔진에도 OCR 채널 등록 (엔진 생성 대기 후)
     await Future.delayed(const Duration(milliseconds: 800));
     final okEng = await OcrService.prepareOverlayEngine();
@@ -784,13 +786,17 @@ class OverlayRoot extends StatefulWidget {
 }
 
 class _OverlayRootState extends State<OverlayRoot> {
-  Stage _stage = Stage.bubble;
+  Stage _stage = Stage.mini;
   List<Pokemon> _all = [];
   List<Pokemon> _results = [];
   Pokemon? _selected;
   final _controller = TextEditingController();
   bool _scanning = false;
   int? _confidence; // 마지막 OCR 인식률(%)
+  double _opacity = 1.0; // 카드 투명도(0.3~1.0)
+  int _repaint = 0; // 표면 잔상 방지용 강제 리페인트 카운터
+  double _cardDy = 0; // 카드 세로 위치(드래그 이동, dp)
+  double _bx = 12, _by = 90; // 버블(최소화) 위치(dp)
 
   @override
   void initState() {
@@ -800,13 +806,14 @@ class _OverlayRootState extends State<OverlayRoot> {
       // 예시로 한 마리 미리 표시 (목업과 동일하게)
       _select(v.firstWhere((p) => p.ko == '뮤츠', orElse: () => v.first));
     });
-    // 오버레이는 이미 버블 크기(showBubbleOverlay)로 열리므로 시작 시 별도 리사이즈 불필요.
+    // 오버레이는 이미 카드 크기(showCardOverlay)로 열림 → 시작 시 리사이즈 안 함(잔상 방지).
   }
 
-  /// 📷 화면 인식: 버블로 접은 뒤 네이티브에서 직접 캡처+OCR → 매칭 → 표시
+  /// 📷 화면 인식: 잠깐 작게 줄여 화면을 가린 카드를 치우고 캡처 → 매칭 → 카드 복귀
   Future<void> _scan() async {
     setState(() => _scanning = true);
-    await _goBubble(); // 버블로 접어 화면을 가리지 않게 (캡처에 카드 안 들어가게)
+    // 캡처 동안만 작게(시각은 중요치 않음 — 뒤 게임화면을 캡처)
+    await FlutterOverlayWindow.resizeOverlay(40, 40, true);
     await Future.delayed(const Duration(milliseconds: 400));
     try {
       final texts = await OcrService.captureAndOcr()
@@ -855,144 +862,119 @@ class _OverlayRootState extends State<OverlayRoot> {
     });
   }
 
-  // 좌표는 화면 중앙 기준 offset(dp). 양수 y = 아래로.
-  // 버블: 우하단 + 기본 플래그(포커스 안 뺏음). 미니/상세: 중앙 + focusPointer(키보드 입력 가능).
-  /// 접기 = 버블로 전환 + 창 축소.
-  /// (닫고 새로 여는 건 안드로이드12+가 백그라운드 포그라운드서비스 시작을 막아 크래시 → 불가)
-  /// 표면 잔상('흰 네모') 방지: 위젯 먼저 버블로 바꾸고, 서로 다른 크기로 두 번 리사이즈 +
-  /// moveOverlay + 여러 프레임 강제 리빌드로 표면을 새로 그리게 한다.
-  Future<void> _goBubble() async {
-    if (mounted) setState(() => _stage = Stage.bubble);
-    await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    await FlutterOverlayWindow.resizeOverlay(50, 50, true);
-    await Future.delayed(const Duration(milliseconds: 60));
-    await FlutterOverlayWindow.resizeOverlay(44, 44, true);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
-    for (final ms in const [0, 100, 250, 450]) {
-      await Future.delayed(Duration(milliseconds: ms));
-      if (!mounted) return;
-      setState(() => _stage = Stage.bubble);
-    }
-  }
-
+  // 미니 카드로 펼치기(폭 matchParent로 '키우기' → 잔상 없음).
   Future<void> _goMini() async {
+    setState(() {
+      _stage = Stage.mini;
+      _repaint++;
+    });
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    // 미니 카드: enableDrag=true → 플러그인 네이티브 드래그(떨림 없이 부드럽게).
-    // 카드 어디를 잡아도 이동 가능, 버튼/검색창 탭은 그대로 동작.
-    await FlutterOverlayWindow.resizeOverlay(330, 280, true);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, -150));
-    setState(() => _stage = Stage.mini);
+    _cardDy = 0;
+    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 320, false);
+    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
+    if (mounted) setState(() => _repaint++);
   }
 
   Future<void> _goFull() async {
+    setState(() {
+      _stage = Stage.full;
+      _repaint++;
+    });
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    // 상세 화면: 위치 고정(중앙) + 드래그 불가 → X 버튼을 항상 누를 수 있게.
-    await FlutterOverlayWindow.resizeOverlay(350, 560, false);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
-    setState(() => _stage = Stage.full);
+    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 640, false);
+    await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
+    if (mounted) setState(() => _repaint++);
   }
 
-  /// 미니 카드 상단의 이동 손잡이(시각 표시용). 실제 이동은 네이티브 드래그가 처리.
-  Widget _gripBar() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Center(
-        child: Container(
-          width: 44,
-          height: 5,
-          decoration: BoxDecoration(
-            color: Colors.black38,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-      ),
-    );
+  /// 최소화: 카드 → 좌측 포켓볼 버블. (창을 작게 '줄이는' 동작이라
+  /// 잔상이 생기지 않도록 내용→리사이즈→다중 강제 리페인트 순으로 처리)
+  Future<void> _goBubble() async {
+    // 1) 먼저 버블 내용으로 바꿔 현재 크기에서 한 프레임 그린다.
+    setState(() {
+      _stage = Stage.bubble;
+      _repaint++;
+    });
+    await Future.delayed(const Duration(milliseconds: 32));
+    // 2) 창을 작게 줄이고 포커스 해제(키보드 안 뜨게).
+    await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
+    await FlutterOverlayWindow.resizeOverlay(70, 70, false);
+    await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
+    // 버블을 좌측 상단 모서리로 보낸다(moveOverlay는 '화면 중앙' 기준 좌표).
+    // 위쪽은 상태바를 피해 48dp 정도 띄운다(상태바 위에 겹쳐 드래그가 막히는 것 방지).
+    _bx = -(_screenW / 2 - 35 - 6);
+    _by = -(_screenH / 2 - 35 - 48);
+    await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
+    // 3) 줄어든 새 크기에서 새 프레임을 여러 번 강제로 그려 흰 네모(표면 잔상) 제거.
+    for (final ms in const [40, 90, 170]) {
+      await Future.delayed(Duration(milliseconds: ms));
+      if (mounted) setState(() => _repaint++);
+    }
+  }
+
+  /// 화면(디스플레이) 크기 dp — moveOverlay 좌표 계산용.
+  double get _screenW {
+    final d = ui.PlatformDispatcher.instance.displays.first;
+    return d.size.width / d.devicePixelRatio;
+  }
+
+  double get _screenH {
+    final d = ui.PlatformDispatcher.instance.displays.first;
+    return d.size.height / d.devicePixelRatio;
+  }
+
+  /// 버블을 손가락 따라 이동(중앙 기준 좌표 → 가장자리까지 clamp).
+  void _dragBubble(Offset delta) {
+    final mx = _screenW / 2 - 35;
+    final my = _screenH / 2 - 35;
+    _bx = (_bx + delta.dx).clamp(-mx, mx);
+    _by = (_by + delta.dy).clamp(-my, my);
+    FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
+  }
+
+  /// 카드를 위/아래로 이동(폭은 matchParent라 가로 이동은 없음).
+  void _dragCard(Offset delta) {
+    _cardDy = (_cardDy + delta.dy).clamp(0.0, 1500.0);
+    FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
   }
 
   @override
   Widget build(BuildContext context) {
     Widget child;
-    switch (_stage) {
-      case Stage.bubble:
-        child = _buildBubble();
-        break;
-      case Stage.mini:
-        child = _buildMini();
-        break;
-      case Stage.full:
-        child = _buildFull();
-        break;
+    if (_stage == Stage.bubble) {
+      child = _buildBubble();
+    } else {
+      final card = _stage == Stage.full ? _buildFull() : _buildMini();
+      child = Opacity(opacity: _opacity, child: card);
     }
-    return Material(color: Colors.transparent, child: child);
-  }
-
-  // ── 1단계: 플로팅 마크 ──────────────────────────────
-  // 창을 꽉 채우게 그려서 showOverlay px 크기 = 보이는 공 크기 (dp/px 어긋남·여백 없음)
-  Widget _buildBubble() {
-    return GestureDetector(
-      onTap: _goMini,
-      child: Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double d = constraints.biggest.shortestSide;
-            if (!d.isFinite || d <= 0) d = 44;
-            if (_scanning) {
-              return Container(
-                width: d,
-                height: d,
-                decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: Colors.red),
-                child: Padding(
-                  padding: EdgeInsets.all(d * 0.22),
-                  child: const CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2.5),
-                ),
-              );
-            }
-            return _pokeballWidget(d);
-          },
-        ),
-      ),
+    return Material(
+      color: Colors.transparent,
+      // 키를 바꿔 새 프레임을 강제(줄이기 후 흰 네모 방지).
+      child: KeyedSubtree(key: ValueKey(_repaint), child: child),
     );
   }
 
-  /// 포켓볼(몬스터볼) — 일반 위젯으로 구성(빨강 베이스).
-  /// 혹시 일부가 안 그려져도 최소 '빨간 공'으로 보여 '흰 네모'가 안 생김.
-  Widget _pokeballWidget(double d) {
-    return Container(
-      width: d,
-      height: d,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFFEE1515), // 빨강 베이스
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 5),
-        ],
-      ),
-      child: ClipOval(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Column(
-              children: [
-                Expanded(child: Container(color: const Color(0xFFEE1515))),
-                Expanded(child: Container(color: Colors.white)),
-              ],
-            ),
-            // 가운데 검은 띠
-            Container(height: d * 0.12, width: d, color: Colors.black),
-            // 가운데 버튼(흰 원 + 검은 테두리)
-            Container(
-              width: d * 0.34,
-              height: d * 0.34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(color: Colors.black, width: d * 0.05),
-              ),
-            ),
-          ],
+  // ── 1단계: 최소화 버블(좌측 포켓볼) ──────────────────
+  // 탭 → 미니 카드로 복귀, 드래그 → 이동.
+  Widget _buildBubble() {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _goMini,
+        onPanUpdate: (d) => _dragBubble(d.delta),
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35), blurRadius: 8)
+            ],
+          ),
+          child: const Icon(Icons.catching_pokemon,
+              color: Colors.red, size: 48),
         ),
       ),
     );
@@ -1009,9 +991,9 @@ class _OverlayRootState extends State<OverlayRoot> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _gripBar(),
-            _searchBar(onCollapse: _goBubble),
+            _searchBar(),
             const Divider(height: 1),
+            _opacityBar(),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
@@ -1103,8 +1085,9 @@ class _OverlayRootState extends State<OverlayRoot> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 6),
-            _searchBar(onCollapse: _goMini),
+            _searchBar(),
             const Divider(height: 1),
+            _opacityBar(),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -1266,13 +1249,25 @@ class _OverlayRootState extends State<OverlayRoot> {
         ],
       );
 
-  Widget _searchBar({required VoidCallback onCollapse}) {
+  Widget _searchBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
       child: Row(
         children: [
-          const Icon(Icons.catching_pokemon, color: Colors.red, size: 22),
-          const SizedBox(width: 8),
+          // 포켓볼 핸들: 탭 → 최소화(버블), 드래그 → 카드 이동
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _goBubble,
+            onPanUpdate: (d) => _dragCard(d.delta),
+            child: Tooltip(
+              message: '탭: 최소화 / 끌기: 이동',
+              child: const Padding(
+                padding: EdgeInsets.all(3),
+                child: Icon(Icons.catching_pokemon, color: Colors.red, size: 26),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
           Expanded(
             child: TextField(
               controller: _controller,
@@ -1286,28 +1281,62 @@ class _OverlayRootState extends State<OverlayRoot> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.camera_alt, color: Colors.red),
-            tooltip: '화면 인식',
-            visualDensity: VisualDensity.compact,
-            onPressed: _scan,
-          ),
-          IconButton(
-            icon: const Icon(Icons.remove, size: 26),
-            tooltip: '버블로 접기',
-            visualDensity: VisualDensity.compact,
-            onPressed: onCollapse,
-          ),
+          _scanning
+              ? const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Padding(
+                    padding: EdgeInsets.all(9),
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: Colors.red),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.camera_alt, color: Colors.red),
+                  tooltip: '화면 인식',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _scan,
+                ),
           const SizedBox(width: 6),
-          // 닫기(X)는 빨간 원 배경으로 확실히 구분 → 접기와 헷갈려 잘못 끄는 것 방지
+          // 닫기(X) = 오버레이 완전히 끄기 (최소화/버블 없음)
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white, size: 20),
             tooltip: '오버레이 끄기',
-            visualDensity: VisualDensity.compact,
             style: IconButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: _closeOverlay,
           ),
-          const SizedBox(width: 2),
+        ],
+      ),
+    );
+  }
+
+  // 투명도(게임 화면 비치게) 조절 슬라이더
+  Widget _opacityBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 12, 0),
+      child: Row(
+        children: [
+          const Icon(Icons.opacity, size: 18, color: Colors.black45),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 12),
+              ),
+              child: Slider(
+                min: 0.3,
+                max: 1.0,
+                value: _opacity,
+                onChanged: (v) => setState(() => _opacity = v),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 38,
+            child: Text('${(_opacity * 100).round()}%',
+                style: const TextStyle(fontSize: 11, color: Colors.black45)),
+          ),
         ],
       ),
     );

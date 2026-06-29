@@ -1,136 +1,558 @@
 {
-  "normal": [
-    {"ko": "레지기가스", "tier": "A", "mega": false},
-    {"ko": "잠만보", "tier": "B", "mega": false},
-    {"ko": "켄타로스", "tier": "B", "mega": false}
-  ],
-  "fire": [
-    {"ko": "메가번치코", "tier": "S", "mega": true},
-    {"ko": "메가리자몽Y", "tier": "S", "mega": true},
-    {"ko": "레시라무", "tier": "S", "mega": false},
-    {"ko": "불카모스", "tier": "A", "mega": false},
-    {"ko": "샹델라", "tier": "A", "mega": false},
-    {"ko": "불비달마", "tier": "A", "mega": false},
-    {"ko": "히드런", "tier": "A", "mega": false},
-    {"ko": "앤테이", "tier": "B", "mega": false}
-  ],
-  "water": [
-    {"ko": "원시가이오가", "tier": "S", "mega": true},
-    {"ko": "가이오가", "tier": "S", "mega": false},
-    {"ko": "메가대짱이", "tier": "A", "mega": true},
-    {"ko": "메가거북왕", "tier": "A", "mega": true},
-    {"ko": "메가갸라도스", "tier": "A", "mega": true},
-    {"ko": "라프라스", "tier": "B", "mega": false}
-  ],
-  "electric": [
-    {"ko": "제크로무", "tier": "S", "mega": false},
-    {"ko": "메가전룡", "tier": "A", "mega": true},
-    {"ko": "메가썬더볼트", "tier": "A", "mega": true},
-    {"ko": "전수목", "tier": "A", "mega": false},
-    {"ko": "라이코", "tier": "A", "mega": false},
-    {"ko": "썬더", "tier": "B", "mega": false},
-    {"ko": "에레키블", "tier": "B", "mega": false}
-  ],
-  "grass": [
-    {"ko": "메가나무킹", "tier": "S", "mega": true},
-    {"ko": "종이신도", "tier": "S", "mega": false},
-    {"ko": "로즈레이드", "tier": "A", "mega": false},
-    {"ko": "메가이상해꽃", "tier": "A", "mega": true},
-    {"ko": "덩쿠림보", "tier": "A", "mega": false},
-    {"ko": "토대부기", "tier": "B", "mega": false}
-  ],
-  "ice": [
-    {"ko": "메가눈설왕", "tier": "A", "mega": true},
-    {"ko": "맘모꾸리", "tier": "A", "mega": false},
-    {"ko": "큐레무", "tier": "A", "mega": false},
-    {"ko": "글레이시아", "tier": "A", "mega": false},
-    {"ko": "프리져", "tier": "B", "mega": false}
-  ],
-  "fighting": [
-    {"ko": "메가루카리오", "tier": "S", "mega": true},
-    {"ko": "테라키온", "tier": "A", "mega": false},
-    {"ko": "루카리오", "tier": "A", "mega": false},
-    {"ko": "괴력몬", "tier": "A", "mega": false},
-    {"ko": "노보청", "tier": "A", "mega": false}
-  ],
-  "poison": [
-    {"ko": "로즈레이드", "tier": "A", "mega": false},
-    {"ko": "니드킹", "tier": "B", "mega": false},
-    {"ko": "펜드라", "tier": "B", "mega": false},
-    {"ko": "우츠보트", "tier": "B", "mega": false}
-  ],
-  "ground": [
-    {"ko": "원시그란돈", "tier": "S", "mega": true},
-    {"ko": "그란돈", "tier": "S", "mega": false},
-    {"ko": "랜드로스", "tier": "S", "mega": false},
-    {"ko": "한카리아스", "tier": "A", "mega": false},
-    {"ko": "거대코뿌리", "tier": "A", "mega": false},
-    {"ko": "몰드류", "tier": "A", "mega": false}
-  ],
-  "flying": [
-    {"ko": "토네로스", "tier": "A", "mega": false},
-    {"ko": "메가피죤투", "tier": "B", "mega": true},
-    {"ko": "파이어로", "tier": "B", "mega": false},
-    {"ko": "무장조", "tier": "B", "mega": false}
-  ],
-  "psychic": [
-    {"ko": "메가뮤츠Y", "tier": "S", "mega": true},
-    {"ko": "뮤츠", "tier": "S", "mega": false},
-    {"ko": "후파", "tier": "A", "mega": false},
-    {"ko": "메가후딘", "tier": "A", "mega": true},
-    {"ko": "라티오스", "tier": "A", "mega": false},
-    {"ko": "메가가디안", "tier": "A", "mega": true}
-  ],
-  "bug": [
-    {"ko": "메가쁘사이저", "tier": "A", "mega": true},
-    {"ko": "메가핫삼", "tier": "A", "mega": true},
-    {"ko": "게노세크트", "tier": "A", "mega": false},
-    {"ko": "핫삼", "tier": "B", "mega": false}
-  ],
-  "rock": [
-    {"ko": "메가마기라스", "tier": "S", "mega": true},
-    {"ko": "거대코뿌리", "tier": "S", "mega": false},
-    {"ko": "램펄드", "tier": "A", "mega": false},
-    {"ko": "마기라스", "tier": "A", "mega": false},
-    {"ko": "메가프테라", "tier": "A", "mega": true},
-    {"ko": "기가이어스", "tier": "A", "mega": false}
-  ],
-  "ghost": [
-    {"ko": "메가팬텀", "tier": "S", "mega": true},
-    {"ko": "기라티나", "tier": "A", "mega": false},
-    {"ko": "메가다크펫", "tier": "A", "mega": true},
-    {"ko": "샹델라", "tier": "A", "mega": false},
-    {"ko": "골루그", "tier": "B", "mega": false}
-  ],
-  "dragon": [
-    {"ko": "메가보만다", "tier": "S", "mega": true},
-    {"ko": "레쿠쟈", "tier": "S", "mega": false},
-    {"ko": "디아루가", "tier": "S", "mega": false},
-    {"ko": "펄기아", "tier": "S", "mega": false},
-    {"ko": "망나뇽", "tier": "A", "mega": false},
-    {"ko": "한카리아스", "tier": "A", "mega": false}
-  ],
-  "dark": [
-    {"ko": "다크라이", "tier": "S", "mega": false},
-    {"ko": "메가마기라스", "tier": "S", "mega": true},
-    {"ko": "메가헬가", "tier": "A", "mega": true},
-    {"ko": "삼삼드래", "tier": "A", "mega": false},
-    {"ko": "포푸니라", "tier": "A", "mega": false},
-    {"ko": "이벨타르", "tier": "A", "mega": false}
-  ],
-  "steel": [
-    {"ko": "메타그로스", "tier": "S", "mega": false},
-    {"ko": "메가보스로라", "tier": "A", "mega": true},
-    {"ko": "디아루가", "tier": "A", "mega": false},
-    {"ko": "몰드류", "tier": "A", "mega": false},
-    {"ko": "메가핫삼", "tier": "A", "mega": true},
-    {"ko": "게노세크트", "tier": "A", "mega": false}
-  ],
-  "fairy": [
-    {"ko": "제르네아스", "tier": "S", "mega": false},
-    {"ko": "메가가디안", "tier": "S", "mega": true},
-    {"ko": "자시안", "tier": "S", "mega": false},
-    {"ko": "토게키스", "tier": "A", "mega": false},
-    {"ko": "님피아", "tier": "A", "mega": false}
-  ]
+ "normal": [
+  {
+   "ko": "레지기가스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "잠만보",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "켄타로스",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "fire": [
+  {
+   "ko": "메가번치코",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "메가리자몽Y",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "레시라무",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "불카모스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "샹델라",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "불비달마",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "히드런",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "앤테이",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "water": [
+  {
+   "ko": "원시가이오가",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "가이오가",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "메가대짱이",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "메가거북왕",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "메가갸라도스",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "라프라스",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "electric": [
+  {
+   "ko": "제크로무",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "메가전룡",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "메가썬더볼트",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "전수목",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "라이코",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "썬더",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "에레키블",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "볼트로스(영물)",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "grass": [
+  {
+   "ko": "메가나무킹",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "종이신도",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "로즈레이드",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가이상해꽃",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "덩쿠림보",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "토대부기",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "ice": [
+  {
+   "ko": "메가눈설왕",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "맘모꾸리",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "큐레무",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "글레이시아",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "프리져",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "블랙 큐레무",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "fighting": [
+  {
+   "ko": "메가루카리오",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "테라키온",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "루카리오",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "괴력몬",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "노보청",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "poison": [
+  {
+   "ko": "로즈레이드",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "니드킹",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "펜드라",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "우츠보트",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "ground": [
+  {
+   "ko": "원시그란돈",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "그란돈",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "랜드로스",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "한카리아스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "거대코뿌리",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "몰드류",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "flying": [
+  {
+   "ko": "토네로스(영물)",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가피죤투",
+   "tier": "B",
+   "mega": true
+  },
+  {
+   "ko": "파이어로",
+   "tier": "B",
+   "mega": false
+  },
+  {
+   "ko": "무장조",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "psychic": [
+  {
+   "ko": "메가뮤츠Y",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "버드렉스(흑마)",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "뮤츠",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "후파",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가후딘",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "라티오스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가가디안",
+   "tier": "A",
+   "mega": true
+  }
+ ],
+ "bug": [
+  {
+   "ko": "메가쁘사이저",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "메가핫삼",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "게노세크트",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "핫삼",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "rock": [
+  {
+   "ko": "메가마기라스",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "거대코뿌리",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "램펄드",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "마기라스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가프테라",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "기가이어스",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "ghost": [
+  {
+   "ko": "메가팬텀",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "버드렉스(흑마)",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "기라티나(오리진)",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가다크펫",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "샹델라",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "골루그",
+   "tier": "B",
+   "mega": false
+  }
+ ],
+ "dragon": [
+  {
+   "ko": "메가보만다",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "레쿠쟈",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "디아루가",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "펄기아",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "망나뇽",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "한카리아스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "블랙 큐레무",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "dark": [
+  {
+   "ko": "다크라이",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "메가마기라스",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "메가헬가",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "삼삼드래",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "포푸니라",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "이벨타르",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "steel": [
+  {
+   "ko": "메타그로스",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "메가보스로라",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "디아루가",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "몰드류",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "메가핫삼",
+   "tier": "A",
+   "mega": true
+  },
+  {
+   "ko": "게노세크트",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "네크로즈마(황혼의 갈기)",
+   "tier": "A",
+   "mega": false
+  }
+ ],
+ "fairy": [
+  {
+   "ko": "제르네아스",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "메가가디안",
+   "tier": "S",
+   "mega": true
+  },
+  {
+   "ko": "자시안(검의 왕)",
+   "tier": "S",
+   "mega": false
+  },
+  {
+   "ko": "토게키스",
+   "tier": "A",
+   "mega": false
+  },
+  {
+   "ko": "님피아",
+   "tier": "A",
+   "mega": false
+  }
+ ]
 }
