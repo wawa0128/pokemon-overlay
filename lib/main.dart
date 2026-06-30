@@ -797,10 +797,6 @@ class _OverlayRootState extends State<OverlayRoot> {
   int _repaint = 0; // 표면 잔상 방지용 강제 리페인트 카운터
   double _cardDy = 0; // 카드 세로 오프셋(화면 중앙 기준, dp)
   double _bx = 12, _by = 90; // 버블 위치(화면 중앙 기준 오프셋, dp)
-  Offset _grab = Offset.zero; // 드래그 시작 시 잡은 지점(위젯 내부 좌표) — 떨림 방지용
-  // moveOverlay 쓰로틀: 한 번에 하나만 보내고, 그 사이 들어온 최신값만 다시 보냄
-  bool _moving = false;
-  double? _pendX, _pendY;
 
   @override
   void initState() {
@@ -879,6 +875,8 @@ class _OverlayRootState extends State<OverlayRoot> {
   // fromBubble=true면 버블이 있던 자리에서 핸들이 시작되도록 카드 위치를 맞춘다.
   Future<void> _goMini({bool fromBubble = false}) async {
     if (fromBubble) {
+      // 버블이 (드래그로) 옮겨진 실제 위치를 먼저 읽어와 인계 좌표로 쓴다.
+      await _syncPos();
       // 버블 중심 y = 핸들 중심 y 가 되도록 카드 세로 오프셋 역산(미니 기준).
       final maxDy = _screenH / 2 - _miniH / 2;
       _cardDy = (_by + (_miniH / 2 - _handleY)).clamp(-maxDy, maxDy);
@@ -890,7 +888,8 @@ class _OverlayRootState extends State<OverlayRoot> {
       _repaint++;
     });
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 320, false);
+    // 미니는 위치 이동 가능 → 네이티브 드래그 on(떨림 없음).
+    await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 320, true);
     await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
     if (mounted) setState(() => _repaint++);
   }
@@ -913,6 +912,8 @@ class _OverlayRootState extends State<OverlayRoot> {
     // 최소화 직전 카드 높이로 핸들(포켓볼) 위치를 계산 → 버블을 그 자리에 둔다.
     // moveOverlay(x,y) = 화면 중앙 기준 오프셋(dp). 카드는 Align.topCenter라 핸들 ≈ 창 상단.
     final cardH = _stage == Stage.full ? _fullH : _miniH;
+    // 미니가 드래그로 옮겨졌을 수 있으니 실제 카드 위치를 먼저 읽어온다.
+    if (_stage == Stage.mini) await _syncPos();
     final mx = _screenW / 2 - _bubble / 2;
     final my = _screenH / 2 - _bubble / 2;
     _bx = (-_screenW / 2 + _handleX).clamp(-mx, mx);
@@ -924,8 +925,9 @@ class _OverlayRootState extends State<OverlayRoot> {
     });
     await Future.delayed(const Duration(milliseconds: 32));
     // 2) 창을 작게 줄이고 포커스 해제(키보드 안 뜨게) + 버블 자리로 이동.
+    //    네이티브 드래그 on → 버블을 손가락으로 매끄럽게 옮길 수 있다.
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
-    await FlutterOverlayWindow.resizeOverlay(_bubble.round(), _bubble.round(), false);
+    await FlutterOverlayWindow.resizeOverlay(_bubble.round(), _bubble.round(), true);
     await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
     // 3) 줄어든 새 크기에서 새 프레임을 여러 번 강제로 그려 흰 네모(표면 잔상) 제거.
     for (final ms in const [40, 90, 170]) {
@@ -948,42 +950,26 @@ class _OverlayRootState extends State<OverlayRoot> {
   /// 최소화 버블(몬스터볼) 한 변 크기(dp). 흰 배경 없이 공만.
   static const double _bubble = 34;
 
-  /// moveOverlay 쓰로틀: 비동기 호출이 밀려 떨리는 것 방지(최신값만 적용).
-  Future<void> _moveTo(double x, double y) async {
-    _pendX = x;
-    _pendY = y;
-    if (_moving) return;
-    _moving = true;
-    while (_pendX != null) {
-      final px = _pendX!, py = _pendY!;
-      _pendX = null;
-      _pendY = null;
-      await FlutterOverlayWindow.moveOverlay(OverlayPosition(px, py));
-    }
-    _moving = false;
-  }
-
   // ── 떨림 없는 드래그 ─────────────────────────────
-  // 핵심: 직전 이벤트와의 delta(창이 움직이면 좌표계가 어긋나 떨림)가 아니라,
-  // '잡은 지점(_grab)' 기준 현재 위치 차이로 보정 → 자기수렴(떨림 없음).
-  void _dragStart(DragStartDetails d) => _grab = d.localPosition;
+  // 드래그는 네이티브(enableDrag=true)가 getRawX/Y(절대 화면좌표)로 직접 처리한다.
+  // Flutter에서 moveOverlay를 매 이벤트 호출하면 창이 움직이며 터치 좌표계가 어긋나
+  // 피드백 진동(떨림)이 생기는데, 네이티브 드래그는 그 루프가 없어 매끄럽다.
+  // 탭(이동 5px 미만)은 그대로 통과하므로 onTap(최소화/펼치기)도 정상 동작한다.
 
-  /// 버블 이동(상하좌우).
-  void _dragBubble(DragUpdateDetails d) {
-    final move = d.localPosition - _grab;
-    final mx = _screenW / 2 - _bubble / 2;
-    final my = _screenH / 2 - _bubble / 2;
-    _bx = (_bx + move.dx).clamp(-mx, mx);
-    _by = (_by + move.dy).clamp(-my, my);
-    _moveTo(_bx, _by);
-  }
-
-  /// 미니 카드 상하 이동(폭 matchParent라 가로 이동 없음). 상세(고정)에선 무시.
-  void _dragCard(DragUpdateDetails d) {
-    if (_stage != Stage.mini) return;
-    final maxDy = _screenH / 2 - _miniH / 2;
-    _cardDy = (_cardDy + (d.localPosition.dy - _grab.dy)).clamp(-maxDy, maxDy);
-    _moveTo(0, _cardDy);
+  /// 네이티브 드래그로 옮겨진 실제 위치(dp, 화면 중앙 기준)를 Dart 상태로 동기화.
+  /// 단계 전환 직전에 호출해 인계 좌표가 어긋나지 않게 한다.
+  Future<void> _syncPos() async {
+    try {
+      final p = await FlutterOverlayWindow.getOverlayPosition();
+      if (_stage == Stage.bubble) {
+        _bx = p.x;
+        _by = p.y;
+      } else if (_stage == Stage.mini) {
+        _cardDy = p.y;
+      }
+    } catch (_) {
+      // 위치 조회 실패 시 마지막으로 알던 값 유지.
+    }
   }
 
   @override
@@ -1003,15 +989,13 @@ class _OverlayRootState extends State<OverlayRoot> {
   }
 
   // ── 1단계: 최소화 버블(좌측 포켓볼) ──────────────────
-  // 탭 → 미니 카드로 복귀, 드래그 → 이동.
+  // 탭 → 미니 카드로 복귀, 드래그(이동)는 네이티브가 처리.
   Widget _buildBubble() {
     return Align(
       alignment: Alignment.topLeft,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _goMini(fromBubble: true),
-        onPanStart: _dragStart,
-        onPanUpdate: _dragBubble,
         // 흰 원 배경 없이 몬스터볼 아이콘만(절반 크기). 어두운 배경서도 보이게 옅은 그림자.
         child: Container(
           width: _bubble,
@@ -1304,14 +1288,12 @@ class _OverlayRootState extends State<OverlayRoot> {
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
       child: Row(
         children: [
-          // 포켓볼 핸들: 탭 → 최소화(버블), 드래그 → 카드 이동
+          // 포켓볼 핸들: 탭 → 최소화(버블). 카드 이동은 네이티브 드래그(아무 데나 끌기).
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _goBubble,
-            onPanStart: _dragStart,
-            onPanUpdate: _dragCard,
             child: Tooltip(
-              message: '탭: 최소화 / 끌기: 이동',
+              message: '탭: 최소화 / 카드를 끌어 이동',
               child: const Padding(
                 padding: EdgeInsets.all(3),
                 child: Icon(Icons.catching_pokemon, color: Colors.red, size: 26),
