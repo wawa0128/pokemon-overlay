@@ -795,8 +795,12 @@ class _OverlayRootState extends State<OverlayRoot> {
   int? _confidence; // 마지막 OCR 인식률(%)
   double _opacity = 1.0; // 카드 투명도(0.3~1.0)
   int _repaint = 0; // 표면 잔상 방지용 강제 리페인트 카운터
-  double _cardDy = 0; // 카드 세로 위치(드래그 이동, dp)
-  double _bx = 12, _by = 90; // 버블(최소화) 위치(dp)
+  double _cardDy = 0; // 카드 세로 오프셋(화면 중앙 기준, dp)
+  double _bx = 12, _by = 90; // 버블 위치(화면 중앙 기준 오프셋, dp)
+  Offset _grab = Offset.zero; // 드래그 시작 시 잡은 지점(위젯 내부 좌표) — 떨림 방지용
+  // moveOverlay 쓰로틀: 한 번에 하나만 보내고, 그 사이 들어온 최신값만 다시 보냄
+  bool _moving = false;
+  double? _pendX, _pendY;
 
   @override
   void initState() {
@@ -806,7 +810,9 @@ class _OverlayRootState extends State<OverlayRoot> {
       // 예시로 한 마리 미리 표시 (목업과 동일하게)
       _select(v.firstWhere((p) => p.ko == '뮤츠', orElse: () => v.first));
     });
-    // 오버레이는 이미 카드 크기(showCardOverlay)로 열림 → 시작 시 리사이즈 안 함(잔상 방지).
+    // 시작 시 카드를 '중앙 기준(0,0)'으로 정규화 → 이후 최소화 좌표 계산이 일관됨.
+    // (matchParent 폭 유지 + 높이 키우기만이라 흰 네모 없음)
+    WidgetsBinding.instance.addPostFrameCallback((_) => _goMini());
   }
 
   /// 📷 화면 인식: 잠깐 작게 줄여 화면을 가린 카드를 치우고 캡처 → 매칭 → 카드 복귀
@@ -862,47 +868,64 @@ class _OverlayRootState extends State<OverlayRoot> {
     });
   }
 
+  // 미니 카드 높이(dp). 핸들 위치 계산에 사용.
+  static const double _miniH = 320;
+  static const double _fullH = 640;
+  // 카드 좌상단에서 포켓볼 핸들 중심까지의 대략 오프셋(dp)
+  static const double _handleX = 31;
+  static const double _handleY = 30;
+
   // 미니 카드로 펼치기(폭 matchParent로 '키우기' → 잔상 없음).
-  Future<void> _goMini() async {
+  // fromBubble=true면 버블이 있던 자리에서 핸들이 시작되도록 카드 위치를 맞춘다.
+  Future<void> _goMini({bool fromBubble = false}) async {
+    if (fromBubble) {
+      // 버블 중심 y = 핸들 중심 y 가 되도록 카드 세로 오프셋 역산(미니 기준).
+      final maxDy = _screenH / 2 - _miniH / 2;
+      _cardDy = (_by + (_miniH / 2 - _handleY)).clamp(-maxDy, maxDy);
+    } else {
+      _cardDy = 0;
+    }
     setState(() {
       _stage = Stage.mini;
       _repaint++;
     });
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
-    _cardDy = 0;
     await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 320, false);
-    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
+    await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
     if (mounted) setState(() => _repaint++);
   }
 
   Future<void> _goFull() async {
+    _cardDy = 0; // 상세(3단계)는 화면 중앙 고정(드래그 없음) → 넘침 방지.
     setState(() {
       _stage = Stage.full;
       _repaint++;
     });
     await FlutterOverlayWindow.updateFlag(OverlayFlag.focusPointer);
     await FlutterOverlayWindow.resizeOverlay(WindowSize.matchParent, 640, false);
-    await FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
+    await FlutterOverlayWindow.moveOverlay(const OverlayPosition(0, 0));
     if (mounted) setState(() => _repaint++);
   }
 
   /// 최소화: 카드 → 좌측 포켓볼 버블. (창을 작게 '줄이는' 동작이라
   /// 잔상이 생기지 않도록 내용→리사이즈→다중 강제 리페인트 순으로 처리)
   Future<void> _goBubble() async {
+    // 최소화 직전 카드 높이로 핸들(포켓볼) 위치를 계산 → 버블을 그 자리에 둔다.
+    // moveOverlay(x,y) = 화면 중앙 기준 오프셋(dp). 카드는 Align.topCenter라 핸들 ≈ 창 상단.
+    final cardH = _stage == Stage.full ? _fullH : _miniH;
+    final mx = _screenW / 2 - _bubble / 2;
+    final my = _screenH / 2 - _bubble / 2;
+    _bx = (-_screenW / 2 + _handleX).clamp(-mx, mx);
+    _by = (_cardDy - cardH / 2 + _handleY).clamp(-my, my);
     // 1) 먼저 버블 내용으로 바꿔 현재 크기에서 한 프레임 그린다.
     setState(() {
       _stage = Stage.bubble;
       _repaint++;
     });
     await Future.delayed(const Duration(milliseconds: 32));
-    // 2) 창을 작게 줄이고 포커스 해제(키보드 안 뜨게).
+    // 2) 창을 작게 줄이고 포커스 해제(키보드 안 뜨게) + 버블 자리로 이동.
     await FlutterOverlayWindow.updateFlag(OverlayFlag.defaultFlag);
     await FlutterOverlayWindow.resizeOverlay(_bubble.round(), _bubble.round(), false);
-    await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
-    // 버블을 좌측 상단 모서리로 보낸다(moveOverlay는 '화면 중앙' 기준 좌표).
-    // 위쪽은 상태바를 피해 48dp 정도 띄운다(상태바 위에 겹쳐 드래그가 막히는 것 방지).
-    _bx = -(_screenW / 2 - _bubble / 2 - 6);
-    _by = -(_screenH / 2 - _bubble / 2 - 48);
     await FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
     // 3) 줄어든 새 크기에서 새 프레임을 여러 번 강제로 그려 흰 네모(표면 잔상) 제거.
     for (final ms in const [40, 90, 170]) {
@@ -925,19 +948,42 @@ class _OverlayRootState extends State<OverlayRoot> {
   /// 최소화 버블(몬스터볼) 한 변 크기(dp). 흰 배경 없이 공만.
   static const double _bubble = 34;
 
-  /// 버블을 손가락 따라 이동(중앙 기준 좌표 → 가장자리까지 clamp).
-  void _dragBubble(Offset delta) {
-    final mx = _screenW / 2 - _bubble / 2;
-    final my = _screenH / 2 - _bubble / 2;
-    _bx = (_bx + delta.dx).clamp(-mx, mx);
-    _by = (_by + delta.dy).clamp(-my, my);
-    FlutterOverlayWindow.moveOverlay(OverlayPosition(_bx, _by));
+  /// moveOverlay 쓰로틀: 비동기 호출이 밀려 떨리는 것 방지(최신값만 적용).
+  Future<void> _moveTo(double x, double y) async {
+    _pendX = x;
+    _pendY = y;
+    if (_moving) return;
+    _moving = true;
+    while (_pendX != null) {
+      final px = _pendX!, py = _pendY!;
+      _pendX = null;
+      _pendY = null;
+      await FlutterOverlayWindow.moveOverlay(OverlayPosition(px, py));
+    }
+    _moving = false;
   }
 
-  /// 카드를 위/아래로 이동(폭은 matchParent라 가로 이동은 없음).
-  void _dragCard(Offset delta) {
-    _cardDy = (_cardDy + delta.dy).clamp(0.0, 1500.0);
-    FlutterOverlayWindow.moveOverlay(OverlayPosition(0, _cardDy));
+  // ── 떨림 없는 드래그 ─────────────────────────────
+  // 핵심: 직전 이벤트와의 delta(창이 움직이면 좌표계가 어긋나 떨림)가 아니라,
+  // '잡은 지점(_grab)' 기준 현재 위치 차이로 보정 → 자기수렴(떨림 없음).
+  void _dragStart(DragStartDetails d) => _grab = d.localPosition;
+
+  /// 버블 이동(상하좌우).
+  void _dragBubble(DragUpdateDetails d) {
+    final move = d.localPosition - _grab;
+    final mx = _screenW / 2 - _bubble / 2;
+    final my = _screenH / 2 - _bubble / 2;
+    _bx = (_bx + move.dx).clamp(-mx, mx);
+    _by = (_by + move.dy).clamp(-my, my);
+    _moveTo(_bx, _by);
+  }
+
+  /// 미니 카드 상하 이동(폭 matchParent라 가로 이동 없음). 상세(고정)에선 무시.
+  void _dragCard(DragUpdateDetails d) {
+    if (_stage != Stage.mini) return;
+    final maxDy = _screenH / 2 - _miniH / 2;
+    _cardDy = (_cardDy + (d.localPosition.dy - _grab.dy)).clamp(-maxDy, maxDy);
+    _moveTo(0, _cardDy);
   }
 
   @override
@@ -963,8 +1009,9 @@ class _OverlayRootState extends State<OverlayRoot> {
       alignment: Alignment.topLeft,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _goMini,
-        onPanUpdate: (d) => _dragBubble(d.delta),
+        onTap: () => _goMini(fromBubble: true),
+        onPanStart: _dragStart,
+        onPanUpdate: _dragBubble,
         // 흰 원 배경 없이 몬스터볼 아이콘만(절반 크기). 어두운 배경서도 보이게 옅은 그림자.
         child: Container(
           width: _bubble,
@@ -1261,7 +1308,8 @@ class _OverlayRootState extends State<OverlayRoot> {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _goBubble,
-            onPanUpdate: (d) => _dragCard(d.delta),
+            onPanStart: _dragStart,
+            onPanUpdate: _dragCard,
             child: Tooltip(
               message: '탭: 최소화 / 끌기: 이동',
               child: const Padding(
