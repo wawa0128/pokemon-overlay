@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <!-- ota_update 플러그인이 APK를 내부저장소 files/ota_update 에 받음 -->
-    <files-path name="ota_update" path="ota_update/" />
-    <files-path name="ota_root" path="." />
-    <external-files-path name="ota_ext" path="." />
-    <cache-path name="ota_cache" path="." />
-</paths>

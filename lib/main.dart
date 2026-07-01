@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:ota_update/ota_update.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'type_chart.dart';
 
@@ -90,13 +90,14 @@ class OcrService {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 앱 내 업데이트 — 깃허브 최신 릴리스 확인 → APK 다운로드/설치
+// 업데이트 — 깃허브 최신 릴리스 확인 → 릴리스 페이지를 브라우저로 열기
+// (앱 내 APK 자동설치는 금융앱 악성앱 오탐을 유발해 폐기함)
 // ─────────────────────────────────────────────────────────────
 class ReleaseInfo {
   final String version; // 예: 1.2.3
-  final String apkUrl;
+  final String pageUrl; // 릴리스 페이지(html_url) — 브라우저로 열어 APK 내려받기
   final String notes;
-  ReleaseInfo(this.version, this.apkUrl, this.notes);
+  ReleaseInfo(this.version, this.pageUrl, this.notes);
 }
 
 class UpdateService {
@@ -114,17 +115,11 @@ class UpdateService {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final tag = (data['tag_name'] as String? ?? '').replaceAll(
           RegExp(r'^v', caseSensitive: false), '');
-      final assets = (data['assets'] as List?) ?? const [];
-      String? apkUrl;
-      for (final a in assets) {
-        final name = (a['name'] as String? ?? '').toLowerCase();
-        if (name.endsWith('.apk')) {
-          apkUrl = a['browser_download_url'] as String?;
-          break;
-        }
-      }
-      if (tag.isEmpty || apkUrl == null) return null;
-      return ReleaseInfo(tag, apkUrl, data['body'] as String? ?? '');
+      // 릴리스 페이지 URL(없으면 저장소 릴리스 목록으로 대체).
+      final page = (data['html_url'] as String?) ??
+          'https://github.com/$kGithubRepo/releases';
+      if (tag.isEmpty) return null;
+      return ReleaseInfo(tag, page, data['body'] as String? ?? '');
     } catch (_) {
       return null;
     }
@@ -305,7 +300,6 @@ class _ControlPageState extends State<ControlPage> {
   bool _ocrReady = false;
   String _version = '';
   bool _checking = false;
-  int? _dlPercent; // 업데이트 다운로드 진행률(%)
 
   @override
   void initState() {
@@ -342,9 +336,11 @@ class _ControlPageState extends State<ControlPage> {
       builder: (ctx) => AlertDialog(
         title: Text('새 버전 v${r.version}'),
         content: SingleChildScrollView(
-          child: Text(r.notes.trim().isEmpty
-              ? '새 버전이 있어요. 지금 업데이트할까요?'
-              : r.notes.trim()),
+          child: Text(
+            '${r.notes.trim().isEmpty ? '새 버전이 있어요.' : r.notes.trim()}'
+            '\n\n[다운로드]를 누르면 브라우저로 릴리스 페이지가 열려요.\n'
+            '거기서 APK를 내려받아 설치하면 됩니다.',
+          ),
         ),
         actions: [
           TextButton(
@@ -354,53 +350,21 @@ class _ControlPageState extends State<ControlPage> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _runOta(r);
+              _openRelease(r);
             },
-            child: const Text('업데이트'),
+            child: const Text('다운로드'),
           ),
         ],
       ),
     );
   }
 
-  void _runOta(ReleaseInfo r) {
-    setState(() {
-      _dlPercent = 0;
-      _status = '업데이트 다운로드 중…';
-    });
-    try {
-      OtaUpdate()
-          .execute(r.apkUrl, destinationFilename: 'pokemon-update.apk')
-          .listen((e) {
-        switch (e.status) {
-          case OtaStatus.DOWNLOADING:
-            final p = int.tryParse(e.value ?? '');
-            if (mounted) setState(() => _dlPercent = p);
-            break;
-          case OtaStatus.INSTALLING:
-            if (mounted) {
-              setState(() {
-                _dlPercent = null;
-                _status = '설치 화면을 여는 중…';
-              });
-            }
-            break;
-          default:
-            if (mounted) {
-              setState(() {
-                _dlPercent = null;
-                _status = '업데이트 실패: ${e.status.name}. "알 수 없는 앱 설치" 권한을 확인하세요.';
-              });
-            }
-        }
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _dlPercent = null;
-          _status = '업데이트 오류: $e';
-        });
-      }
+  /// 릴리스 페이지를 외부 브라우저로 연다(앱 내 자동설치 대신).
+  Future<void> _openRelease(ReleaseInfo r) async {
+    final uri = Uri.parse(r.pageUrl);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      setState(() => _status = '브라우저를 열지 못했어요: ${r.pageUrl}');
     }
   }
 
@@ -493,25 +457,19 @@ class _ControlPageState extends State<ControlPage> {
               ),
             ),
             const SizedBox(height: 12),
-            if (_dlPercent != null) ...[
-              LinearProgressIndicator(value: _dlPercent! / 100),
-              const SizedBox(height: 6),
-              Text('다운로드 중… $_dlPercent%',
-                  style: const TextStyle(color: Colors.black54)),
-            ] else
-              OutlinedButton.icon(
-                onPressed: _checking ? null : () => _checkUpdate(manual: true),
-                icon: _checking
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.system_update),
-                label: Text(_checking ? '확인 중…' : '업데이트 확인'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
-                ),
+            OutlinedButton.icon(
+              onPressed: _checking ? null : () => _checkUpdate(manual: true),
+              icon: _checking
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.system_update),
+              label: Text(_checking ? '확인 중…' : '업데이트 확인'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
               ),
+            ),
             const Spacer(),
             if (_version.isNotEmpty)
               Text('현재 버전 v$_version',
